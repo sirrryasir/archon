@@ -1,0 +1,1 @@
+import { marked } from 'marked'; import { markedTerminal } from 'marked-terminal'; import { highlight } from 'cli-highlight'; marked.setOptions({ async: false }); marked.use(markedTerminal({ highlight: (code: any, lang: any) => highlight(code, { language: lang || 'typescript', ignoreIllegals: true }) })); console.log(marked.parse('```js\nconst x = 1;\n```'));
