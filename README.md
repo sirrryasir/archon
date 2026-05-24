@@ -56,22 +56,31 @@ cd archon
 go build -o bin/archon .
 ```
 
-### Step 3: Run the Setup Wizard
-Run the interactive helper. It will guide you through setting up your configuration without needing you to edit files:
+### Step 3: Configure Your Environment
+You can either run the interactive configuration wizard:
 ```bash
 ./bin/archon init
 ```
-
-### Step 4: Verify the Setup
-Run the diagnostic check to ensure Archon can successfully reach your selected AI provider:
+Or configure it manually by copying the template file:
 ```bash
-./bin/archon doctor
+cp .env.example .env
+```
+Open `.env` in your editor and enter your API keys.
+
+### Step 4: Install Globally (Optional)
+To run `archon` from any directory on your computer:
+```bash
+sudo cp bin/archon /usr/local/bin/
 ```
 
 ### Step 5: Start Chatting!
-Launch the interactive terminal interface:
+Verify your configuration and start the interactive terminal session:
 ```bash
-./bin/archon
+# Run doctor check to verify connectivity
+archon doctor
+
+# Start the Socratic Architect TUI
+archon
 ```
 
 ---
