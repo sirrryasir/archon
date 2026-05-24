@@ -4,21 +4,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const BannerText = ` █████╗ ██████╗  ██████╗██╗  ██╗ ██████╗ ███╗   ██╗
-██╔══██╗██╔══██╗██╔════╝██║  ██║██╔═══██╗████╗  ██║
-███████║██████╔╝██║     ███████║██║   ██║██╔██╗ ██║
-██╔══██║██╔══██╗██║     ██╔══██║██║   ██║██║╚██╗██║
-██║  ██║██║  ██║╚██████╗██║  ██║╚██████╔╝██║ ╚████║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝`
-
 var (
-	BannerStyle = lipgloss.NewStyle().
-			Foreground(archonCyan).
-			Bold(true).
-			PaddingLeft(2).
-			MarginTop(1).
-			MarginBottom(1)
-
 	// Base Colors
 	archonCyan   = lipgloss.Color("#00f0ff")
 	archonGray   = lipgloss.Color("#4b5563") // muted gray
