@@ -125,23 +125,24 @@ If you want to run models locally on your own computer without any API keys or n
 
 ## Installation
 
-For power users, developers, and packaging systems:
+### One-Command Installer (Recommended)
 
-### Homebrew (macOS & Linux)
+To install the latest compiled binary automatically:
+
+#### macOS & Linux (Bash)
 ```bash
-brew install sirrryasir/tap/archon
+curl -fsSL https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.sh | bash
+```
+
+#### Windows (PowerShell)
+```powershell
+iwr -useb https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.ps1 | iex
 ```
 
 ### Go Package Manager
-Ensure `~/go/bin` is in your `$PATH`:
+If you have Go installed on your system:
 ```bash
 go install github.com/sirrryasir/archon@latest
-```
-
-### Manual Build
-```bash
-make build
-make install
 ```
 
 ---
