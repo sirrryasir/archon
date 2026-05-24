@@ -1,8 +1,13 @@
 <p align="center">
-  <img src="https://img.icons8.com/color/120/000000/architect.png" alt="Archon Logo" width="120" />
+<pre align="center">
+    ___    ____  ________  ______  _   __
+   /   |  / __ \/ ____/ / / / __ \/ | / /
+  / /| | / /_/ / /   / /_/ / / / /  |/ / 
+ / ___ |/ _, _/ /___/ __  / /_/ / /|  /  
+/_/  |_/_/ |_|\____/_/ /_/\____/_/ |_/   
+</pre>
 </p>
 
-<h1 align="center">Archon</h1>
 <p align="center">A Socratic AI Software Architect CLI for evaluated, constraint-driven systems engineering.</p>
 
 ---
