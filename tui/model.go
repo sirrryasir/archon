@@ -526,6 +526,9 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 func (m *ChatModel) refreshView() {
 	var b strings.Builder
 
+	// Prepend the styled banner at the top of the viewport content
+	b.WriteString(BannerStyle.Render(BannerText) + "\n\n")
+
 	for _, msg := range m.messages {
 		if msg.Role == "system" {
 			continue
