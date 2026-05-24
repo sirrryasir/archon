@@ -6,11 +6,15 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 // InitConfig sets up the configuration cascade using Viper.
 // Resolution order: Defaults > Global File > Local File > Environment > Flags
 func InitConfig() {
+	// Load local .env if present
+	_ = gotenv.Load()
+
 	// 1. Set Defaults
 	viper.SetDefault("provider", "ollama")
 	viper.SetDefault("model", "qwen3-coder:480b-cloud")
