@@ -1,13 +1,18 @@
 package mcp
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 const maxGlobalBytes = 2 * 1024 * 1024 // 2MB global limit
@@ -17,6 +22,8 @@ var ignoredDirs = map[string]bool{
 	".cache": true, "coverage": true, ".turbo": true, ".bun": true,
 	".opencode": true, ".gemini": true, ".factory": true, ".codebuddy": true,
 	".commandcode": true, ".pi": true, ".th-client": true, ".zencoder": true,
+	"bin": true, "vendor": true, "venv": true, ".venv": true, ".archon": true,
+	"tmp": true, "temp": true, "obj": true,
 }
 var ignoredFiles = map[string]bool{
 	"bun.lock": true, "package-lock.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
@@ -31,9 +38,25 @@ var sensitiveFiles = map[string]bool{
 var codeExtensions = map[string]bool{
 	".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".json": true, ".md": true,
 	".yaml": true, ".yml": true, ".toml": true, ".sh": true, ".go": true, ".mod": true,
+	".txt": true,
 }
 
 var secretRegex = regexp.MustCompile(`(?i)(?:sk-|AIza|ghp_|gho_|ghu_|ghs_|ghr_|SECRET|PASSWORD|TOKEN|KEY|PASS)[\w-]{10,}`)
+
+var suspectKeywords = [][]byte{
+	[]byte("sk-"),
+	[]byte("aiza"),
+	[]byte("ghp_"),
+	[]byte("gho_"),
+	[]byte("ghu_"),
+	[]byte("ghs_"),
+	[]byte("ghr_"),
+	[]byte("secret"),
+	[]byte("password"),
+	[]byte("token"),
+	[]byte("key"),
+	[]byte("pass"),
+}
 
 // FileEntry represents a file or directory in the workspace.
 type FileEntry struct {
@@ -60,7 +83,18 @@ var archFiles = map[string]bool{
 	"GEMINI.md": true, "ARCHON.md": true, "README.md": true, "go.mod": true, "package.json": true,
 }
 
-// ScanWorkspace traverses the given root path up to maxDepth to extract architectural context.
+// hasSuspectKeywords checks case-insensitively if any suspect keywords are present.
+func hasSuspectKeywords(data []byte) bool {
+	lower := bytes.ToLower(data)
+	for _, kw := range suspectKeywords {
+		if bytes.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// ScanWorkspace traverses the given root path up to maxDepth to extract architectural context concurrently.
 func ScanWorkspace(rootPath string, maxDepth int) (*ProjectContext, error) {
 	ctx := &ProjectContext{
 		RootPath:    rootPath,
@@ -70,26 +104,116 @@ func ScanWorkspace(rootPath string, maxDepth int) (*ProjectContext, error) {
 
 	var totalBytesRead int64 = 0
 
-	// First pass: Find and read architectural files
+	// First pass: Find and read architectural files (synchronously since they define base context)
 	for archFile := range archFiles {
 		path := filepath.Join(rootPath, archFile)
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			raw, err := os.ReadFile(path)
 			if err == nil {
 				totalBytesRead += info.Size()
+				var content string
+				if hasSuspectKeywords(raw) {
+					content = secretRegex.ReplaceAllString(string(raw), "[REDACTED]")
+				} else {
+					content = string(raw)
+				}
 				ctx.Files = append(ctx.Files, FileEntry{
 					Path:      archFile,
 					Type:      "file",
 					Extension: filepath.Ext(archFile),
 					SizeBytes: info.Size(),
-					Content:   secretRegex.ReplaceAllString(string(raw), "[REDACTED]"),
+					Content:   content,
 				})
 			}
 		}
 	}
 
-	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+	// Prepare concurrent worker pool
+	numWorkers := runtime.NumCPU() * 2
+	if numWorkers < 4 {
+		numWorkers = 4
+	} else if numWorkers > 16 {
+		numWorkers = 16
+	}
 
+	pathsChan := make(chan string, 1000)
+	resultsChan := make(chan FileEntry, 1000)
+
+	var wg sync.WaitGroup
+	scanCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Launch worker pool
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-scanCtx.Done():
+					return
+				case path, ok := <-pathsChan:
+					if !ok {
+						return
+					}
+
+					relPath, err := filepath.Rel(rootPath, path)
+					if err != nil {
+						continue
+					}
+
+					info, err := os.Stat(path)
+					if err != nil {
+						continue
+					}
+
+					ext := filepath.Ext(path)
+					content := ""
+
+					if codeExtensions[ext] {
+						size := info.Size()
+						// Thread-safe global byte limit check
+						currentBytes := atomic.LoadInt64(&totalBytesRead)
+						if currentBytes+size > maxGlobalBytes {
+							content = "[FILE CONTENT OMITTED: GLOBAL CONTEXT LIMIT REACHED]"
+						} else if size < 1024*1024 { // less than 1MB
+							raw, err := os.ReadFile(path)
+							if err == nil {
+								atomic.AddInt64(&totalBytesRead, size)
+								// Fast keyword pre-scan check
+								if hasSuspectKeywords(raw) {
+									content = secretRegex.ReplaceAllString(string(raw), "[REDACTED]")
+								} else {
+									content = string(raw)
+								}
+							}
+						}
+					}
+
+					resultsChan <- FileEntry{
+						Path:      relPath,
+						Type:      "file",
+						Extension: ext,
+						SizeBytes: info.Size(),
+						Content:   content,
+					}
+				}
+			}
+		}()
+	}
+
+	// Aggregate results from workers
+	var resultsWg sync.WaitGroup
+	resultsWg.Add(1)
+	go func() {
+		defer resultsWg.Done()
+		for entry := range resultsChan {
+			ctx.Files = append(ctx.Files, entry)
+		}
+	}()
+
+	// Traverse directories synchronously to populate ctx.Directories and queue file paths
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // ignore inaccessible files
 		}
@@ -116,35 +240,19 @@ func ScanWorkspace(rootPath string, maxDepth int) (*ProjectContext, error) {
 			if ignoredFiles[d.Name()] || sensitiveFiles[d.Name()] || archFiles[d.Name()] {
 				return nil
 			}
-			ext := filepath.Ext(d.Name())
-			info, err := d.Info()
-			if err != nil {
-				return nil
-			}
-
-			content := ""
-			if codeExtensions[ext] {
-				if totalBytesRead+info.Size() > maxGlobalBytes {
-					content = "[FILE CONTENT OMITTED: GLOBAL CONTEXT LIMIT REACHED]"
-				} else if info.Size() < 1024*1024 { // less than 1MB
-					raw, err := os.ReadFile(path)
-					if err == nil {
-						totalBytesRead += info.Size()
-						content = secretRegex.ReplaceAllString(string(raw), "[REDACTED]")
-					}
-				}
-			}
-
-			ctx.Files = append(ctx.Files, FileEntry{
-				Path:      relPath,
-				Type:      "file",
-				Extension: ext,
-				SizeBytes: info.Size(),
-				Content:   content,
-			})
+			pathsChan <- path
 		}
 		return nil
 	})
+
+	// Close paths chan to signal worker termination
+	close(pathsChan)
+	// Wait for workers to complete processing
+	wg.Wait()
+	// Close results channel to terminate aggregator goroutine
+	close(resultsChan)
+	// Wait for aggregation to finish
+	resultsWg.Wait()
 
 	if err != nil {
 		return nil, err
@@ -170,7 +278,7 @@ func ScanWorkspace(rootPath string, maxDepth int) (*ProjectContext, error) {
 		if f.Path == "go.mod" || f.Extension == ".go" {
 			ctx.HasGo = true
 		}
-		
+
 		name := filepath.Base(f.Path)
 		if name == "index.ts" || name == "index.js" || name == "main.ts" || name == "main.js" || name == "app.ts" || name == "main.go" {
 			ctx.EntryPoints = append(ctx.EntryPoints, f.Path)
@@ -195,7 +303,7 @@ func FormatContext(ctx *ProjectContext) string {
 	lines = append(lines, "=== PROJECT CONTEXT (scanned by Archon MCP) ===")
 	lines = append(lines, "")
 	lines = append(lines, "## Tech Stack Detection:")
-	
+
 	if ctx.HasGo {
 		lines = append(lines, "- Runtime: Go")
 	} else if ctx.HasBun {
@@ -253,13 +361,13 @@ func FormatContext(ctx *ProjectContext) string {
 				ext = "text"
 			}
 			lines = append(lines, "```"+ext)
-			
+
 			contentLines := strings.Split(f.Content, "\n")
 			limit := 100
 			if len(contentLines) < limit {
 				limit = len(contentLines)
 			}
-			
+
 			lines = append(lines, strings.Join(contentLines[:limit], "\n"))
 			if len(contentLines) > 100 {
 				lines = append(lines, "// ... [Content truncated after 100 lines]")

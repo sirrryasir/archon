@@ -88,7 +88,6 @@ func (p *GoogleProvider) ChatStream(ctx context.Context, messages []Message, onC
 
 	scanner := bufio.NewScanner(resp.Body)
 	var fullResponse strings.Builder
-	var lineBuffer strings.Builder
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -100,7 +99,6 @@ func (p *GoogleProvider) ChatStream(ctx context.Context, messages []Message, onC
 
 			var event map[string]interface{}
 			if err := json.Unmarshal([]byte(dataStr), &event); err == nil {
-				// Parse Google SSE structure
 				if candidates, ok := event["candidates"].([]interface{}); ok && len(candidates) > 0 {
 					if candidate, ok := candidates[0].(map[string]interface{}); ok {
 						if content, ok := candidate["content"].(map[string]interface{}); ok {
@@ -108,17 +106,12 @@ func (p *GoogleProvider) ChatStream(ctx context.Context, messages []Message, onC
 								if part, ok := parts[0].(map[string]interface{}); ok {
 									if text, ok := part["text"].(string); ok {
 										fullResponse.WriteString(text)
-										lineBuffer.WriteString(text)
 
-										// Guardian Intercept
-										if strings.Contains(text, "\n") {
-											bufStr := lineBuffer.String()
-											if ScanChunkForViolations(bufStr) {
-												warning := "\n\n[OUTPUT TERMINATED BY GUARDIAN: Code generation detected.]"
-												onChunk(warning)
-												return fullResponse.String() + warning, errors.New("output terminated by guardian")
-											}
-											lineBuffer.Reset()
+										// Guardian: scan full accumulated buffer on every chunk
+										if ScanChunkForViolations(fullResponse.String()) {
+											warning := "\n\n> ⚠️ **[GUARDIAN INTERCEPTED]**: I don't write implementation code. Let's focus on the architecture. What problem are you actually trying to solve?"
+											onChunk(warning)
+											return fullResponse.String() + warning, nil
 										}
 										onChunk(text)
 									}

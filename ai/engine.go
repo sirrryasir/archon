@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/sashabaranov/go-openai"
@@ -18,6 +19,33 @@ type StreamHandler func(chunk string)
 // Engine defines the interface for interacting with various LLM providers.
 type Engine interface {
 	ChatStream(ctx context.Context, messages []Message, onChunk StreamHandler) (string, error)
+}
+
+// MockEngine is used for testing and offline/agent simulations.
+type MockEngine struct {
+	Response string
+}
+
+func (m *MockEngine) ChatStream(ctx context.Context, messages []Message, onChunk StreamHandler) (string, error) {
+	// Simulate text streaming chunk by chunk (by words)
+	chunks := strings.Split(m.Response, " ")
+	var fullResponse strings.Builder
+	for i, chunk := range chunks {
+		text := chunk
+		if i < len(chunks)-1 {
+			text += " "
+		}
+		fullResponse.WriteString(text)
+		
+		// Run Guardian on every accumulated response chunk
+		if ScanChunkForViolations(fullResponse.String()) {
+			warning := "\n\n> ⚠️ **[GUARDIAN INTERCEPTED]**: I don't write implementation code. Let's focus on the architecture. What problem are you actually trying to solve?"
+			onChunk(warning)
+			return fullResponse.String() + warning, nil
+		}
+		onChunk(text)
+	}
+	return fullResponse.String(), nil
 }
 
 // FallbackProvider wraps multiple engines for high availability.
@@ -41,6 +69,10 @@ func (p *FallbackProvider) ChatStream(ctx context.Context, messages []Message, o
 
 // NewEngine initializes the correct provider based on configuration.
 func NewEngine() Engine {
+	if mockResp := os.Getenv("ARCHON_MOCK_RESPONSE"); mockResp != "" {
+		return &MockEngine{Response: mockResp}
+	}
+
 	providerName := config.GetProvider()
 	modelName := config.GetModel()
 
@@ -117,7 +149,6 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, messages []Message, onC
 	defer stream.Close()
 
 	var fullResponse strings.Builder
-	var lineBuffer strings.Builder
 
 	for {
 		response, err := stream.Recv()
@@ -131,21 +162,16 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, messages []Message, onC
 		if len(response.Choices) > 0 {
 			chunk := response.Choices[0].Delta.Content
 			fullResponse.WriteString(chunk)
-			lineBuffer.WriteString(chunk)
 
-			// Simple Guardian Intercept: Check line-by-line
-			if strings.Contains(chunk, "\n") {
-				line := lineBuffer.String()
-				if ScanChunkForViolations(line) {
-					// Violation detected! Terminate the stream and inject a warning.
-					warning := "\n\n[OUTPUT TERMINATED BY GUARDIAN: Code generation detected.]"
-					onChunk(warning)
-					return fullResponse.String() + warning, errors.New("output terminated by guardian")
-				}
-				lineBuffer.Reset()
+			// Guardian: scan full accumulated response on every chunk
+			// This catches violations even when ``` and lang tag arrive in separate chunks
+			if ScanChunkForViolations(fullResponse.String()) {
+				warning := "\n\n> ⚠️ **[GUARDIAN INTERCEPTED]**: I don't write implementation code. Let's focus on the architecture. What problem are you actually trying to solve?"
+				onChunk(warning)
+				return fullResponse.String() + warning, nil
 			}
 
-			// Pass safe chunks to the UI
+			// Pass safe chunk to the UI/caller
 			onChunk(chunk)
 		}
 	}

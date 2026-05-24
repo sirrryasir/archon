@@ -5,13 +5,26 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/sirrryasir/archon/config"
+	"github.com/spf13/viper"
 )
 
+// Version is the current release version of Archon. Set via ldflags at build time.
+const Version = "0.1.0"
+
 var rootCmd = &cobra.Command{
-	Use:   "archon",
-	Short: "Archon CLI: The Socratic AI Software Architect",
+	Use:     "archon",
+	Version: Version,
+	Short:   "Archon CLI: The Socratic AI Software Architect",
 	Long: `Archon is an elite Socratic AI Software Architect designed to help developers 
 build robust, scalable systems through architectural inquiry and guidance.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if m, _ := cmd.Flags().GetString("model"); m != "" {
+			viper.Set("model", m)
+		}
+		if p, _ := cmd.Flags().GetString("provider"); p != "" {
+			viper.Set("provider", p)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		StartChatSession()
 	},

@@ -1,62 +1,91 @@
 # Contributing to Archon CLI
 
-Thank you for considering contributing to Archon CLI. This document outlines the process for setting up your development environment and submitting changes.
+Thank you for your interest in contributing to Archon! This document outlines the process for setting up your Go development environment, running tests, and submitting pull requests.
+
+---
 
 ## Development Environment
 
-Archon is built using Bun and TypeScript. To get started:
+Archon is built using Go. To get started, make sure you have [Go](https://go.dev/) (version 1.20 or later) installed on your system.
 
-1. Install Bun:
+### 1. Clone the Repository
 ```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
-2. Clone the repository:
-```bash
-git clone https://github.com/yourusername/archon.git
+git clone https://github.com/sirrryasir/archon.git
 cd archon
 ```
 
-3. Install dependencies:
+### 2. Download Dependencies
 ```bash
-bun install
+go mod download
 ```
 
-4. Run in development mode:
+### 3. Run in Development Mode
+You can compile and run Archon directly using:
 ```bash
-bun run dev
+go run main.go chat
+# or with prompt arguments
+go run main.go prompt "How should I structure my database layer?"
 ```
+
+### 4. Build the Executable
+```bash
+make build
+# This generates the native binary at ./bin/archon
+```
+
+---
 
 ## Project Structure
 
-- bin/: The main executable entry point.
-- src/ai/: AI middleware, Output Guardian, and Ollama integration.
-- src/cli/: Ink-based React UI components for the terminal.
-- src/commands/: Slash commands.
-- src/design/: Architecture document generation and rules engine.
-- src/mcp/: Workspace context scanners.
-- src/modes/: Greenfield vs Brownfield detection logic.
-- src/rendering/: Markdown parsing and terminal rendering.
-- src/session/: Local JSONL session persistence.
+- `main.go`: The main entry point of the CLI application.
+- `cmd/`: Cobra CLI commands (e.g. `rootCmd`, `chatCmd`, `promptCmd`, `initCmd`, `doctorCmd`).
+- `ai/`: Providers (`anthropic`, `google`, `ollama`, `openai`), model estimation, aliases, and the streaming **Output Guardian** middleware.
+- `tui/`: Bubble Tea TUI chat loop, input, styles, and command integrations.
+- `mcp/`: Workspace scanner, git metadata builder, and directory mapping functions.
+- `modes/`: Greenfield vs. Brownfield mode detector and prompt templates.
+- `design/`: Markdown blueprints generator (`ARCHITECTURE.md`, `DESIGN.md`, `SYSTEM.md`) and downstream instructions (`AGENTS.md`).
+- `config/`: Configuration cascade loading using Viper.
+- `session/`: Conversational history database mapping and management.
+- `scripts/`: Integration test suites and build automation.
 
-## Architecture Guidelines
+---
 
-We adhere to the Socratic methodology. When contributing to the AI layer (src/ai/), do not bypass the Output Guardian. Archon is an Architect, not an execution coding agent. Generating raw, un-diagrammatic code blocks is restricted by design.
+## Code Quality & Testing
+
+Before submitting a pull request, ensure your code builds and passes all tests.
+
+### Run Unit Tests
+```bash
+make test
+```
+
+### Run Integration & E2E Tests
+Make sure Ollama is running and you have internet connectivity to verify the end-to-end piping flow:
+```bash
+make e2e
+```
+
+---
+
+## Architectural Guidelines
+
+We adhere strictly to the **Socratic Architect** design:
+1. **No-Implementation-Code**: Do not bypass or weaken the Output Guardian in `ai/guardian.go`. Archon is designed to be an architect, not an execution coding tool. Code blocks containing syntax fences (`go`, `ts`, `py`, etc.) are actively blocked.
+2. **Socratic Dialog**: Answers must prioritize questions that guide the user's thinking rather than doing the thinking for them.
+3. **No Unwanted Logs**: Keep the console output of the `prompt` command clean of diagnostic logs on `stdout`. Always pipe warnings/thinking/diagnostic text to `stderr`.
+
+---
 
 ## Pull Request Process
 
-1. Fork the repository and create your branch from main.
-2. Ensure your code passes the TypeScript compiler check:
-```bash
-bun run typecheck
-```
-3. Describe your changes clearly in the pull request, including the motivation and architectural impact.
-4. Wait for a maintainer to review and merge your changes.
+1. Fork the repository and create your branch from `main`.
+2. Commit your changes with clear, descriptive commit messages.
+3. Run `make test` and `make e2e` to verify your changes.
+4. Open a pull request describing the motivation, implementation, and architectural impact of your change.
 
-## Compiling Binaries
+---
 
-To test binary compilation locally before submitting:
-```bash
-bun run build:all
-```
-This will generate executables for Linux, macOS, and Windows in the dist/ directory.
+## Code of Conduct
+
+Please be respectful and inclusive in your interactions with other contributors. We aim to foster an open and welcoming community. For detailed guidelines, please read our [Code of Conduct](CODE_OF_CONDUCT.md).
+

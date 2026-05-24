@@ -78,7 +78,6 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, messages []Message, 
 
 	scanner := bufio.NewScanner(resp.Body)
 	var fullResponse strings.Builder
-	var lineBuffer strings.Builder
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -90,22 +89,16 @@ func (p *AnthropicProvider) ChatStream(ctx context.Context, messages []Message, 
 
 			var event map[string]interface{}
 			if err := json.Unmarshal([]byte(dataStr), &event); err == nil {
-				// Anthropic SSE structure for text chunks
 				if t, ok := event["type"].(string); ok && t == "content_block_delta" {
 					if delta, ok := event["delta"].(map[string]interface{}); ok {
 						if text, ok := delta["text"].(string); ok {
 							fullResponse.WriteString(text)
-							lineBuffer.WriteString(text)
 
-							// Guardian Intercept
-							if strings.Contains(text, "\n") {
-								bufStr := lineBuffer.String()
-								if ScanChunkForViolations(bufStr) {
-									warning := "\n\n[OUTPUT TERMINATED BY GUARDIAN: Code generation detected.]"
-									onChunk(warning)
-									return fullResponse.String() + warning, errors.New("output terminated by guardian")
-								}
-								lineBuffer.Reset()
+							// Guardian: scan full accumulated buffer on every chunk
+							if ScanChunkForViolations(fullResponse.String()) {
+								warning := "\n\n> ⚠️ **[GUARDIAN INTERCEPTED]**: I don't write implementation code. Let's focus on the architecture. What problem are you actually trying to solve?"
+								onChunk(warning)
+								return fullResponse.String() + warning, nil
 							}
 							onChunk(text)
 						}
