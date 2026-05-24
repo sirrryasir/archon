@@ -45,47 +45,39 @@ When you agree on a design, Archon generates architectural markdown blueprints a
 
 ## Quickstart (For Absolute Beginners)
 
-If you have never touched Go, Ollama, or API keys, follow this step-by-step guide to get Archon running in 5 minutes.
+If you want to get Archon running in less than 2 minutes without building it from source, follow this step-by-step guide.
 
-### Step 1: Install Go
-Go to [go.dev/dl](https://go.dev/dl/) and download the installer for your operating system (macOS, Windows, or Linux). Open the installer and click through the setup.
+### Step 1: Install Archon
 
-### Step 2: Download & Build Archon
-Open your terminal application (Terminal on macOS, PowerShell/Command Prompt on Windows) and run these commands one by one:
+Open your terminal application (Terminal on macOS/Linux, PowerShell on Windows) and run the installer command:
 
+#### macOS & Linux (Bash)
 ```bash
-# 1. Clone this codebase
-git clone https://github.com/sirrryasir/archon.git
-cd archon
-
-# 2. Build the executable binary
-go build -o bin/archon .
+curl -fsSL https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.sh | bash
 ```
 
-### Step 3: Configure Your Environment
-You can either run the interactive configuration wizard:
-```bash
-./bin/archon init
-```
-Or configure it manually by copying the template file:
-```bash
-cp .env.example .env
-```
-Open `.env` in your editor and enter your API keys.
-
-### Step 4: Install Globally (Optional)
-To run `archon` from any directory on your computer:
-```bash
-sudo cp bin/archon /usr/local/bin/
+#### Windows (PowerShell)
+```powershell
+iwr -useb https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.ps1 | iex
 ```
 
-### Step 5: Start Chatting!
-Verify your configuration and start the interactive terminal session:
+### Step 2: Configure Your Environment
+
+Run the interactive setup wizard to configure your preferred AI provider (Ollama, OpenAI, Anthropic, or Google):
+
+```bash
+archon init
+```
+
+### Step 3: Start Chatting!
+
+Verify your configuration and launch the Socratic Architect TUI:
+
 ```bash
 # Run doctor check to verify connectivity
 archon doctor
 
-# Start the Socratic Architect TUI
+# Start the interactive session
 archon
 ```
 
@@ -125,24 +117,20 @@ If you want to run models locally on your own computer without any API keys or n
 
 ## Installation
 
-### One-Command Installer (Recommended)
-
-To install the latest compiled binary automatically:
-
-#### macOS & Linux (Bash)
-```bash
-curl -fsSL https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.sh | bash
-```
-
-#### Windows (PowerShell)
-```powershell
-iwr -useb https://raw.githubusercontent.com/sirrryasir/archon/main/scripts/install.ps1 | iex
-```
+For developers and power users:
 
 ### Go Package Manager
 If you have Go installed on your system:
 ```bash
 go install github.com/sirrryasir/archon@latest
+```
+
+### Building from Source
+If you want to build the binary manually:
+```bash
+git clone https://github.com/sirrryasir/archon.git
+cd archon
+go build -o bin/archon .
 ```
 
 ---
