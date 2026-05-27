@@ -12,7 +12,7 @@ Write-Host ""
 
 $Owner = "sirrryasir"
 $Repo = "archon"
-$FallbackTag = "v0.1.0"
+$FallbackTag = "v0.1.1"
 
 Write-Host "Checking the latest release of Archon..."
 try {

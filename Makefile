@@ -1,6 +1,6 @@
 .PHONY: build test clean install doctor
 
-VERSION ?= 0.1.0
+VERSION ?= 0.1.1
 BINARY  := bin/archon
 
 ## build: Compile archon binary

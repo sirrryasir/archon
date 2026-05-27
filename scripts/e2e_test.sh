@@ -14,7 +14,7 @@ make build
 # 1. Test Version Command
 echo -n "Testing version command... "
 VERSION=$(./bin/archon --version)
-if [[ "$VERSION" == *"archon version 0.1.0"* ]]; then
+if [[ "$VERSION" == *"archon version 0.1.1"* ]]; then
     echo -e "${GREEN}PASS${NC}"
 else
     echo -e "${RED}FAIL (got: $VERSION)${NC}"

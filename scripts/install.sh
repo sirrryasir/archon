@@ -20,7 +20,7 @@ cat << 'EOF'
 EOF
 printf "${NC}\n"
 
-FALLBACK_TAG="v0.1.0"
+FALLBACK_TAG="v0.1.1"
 OWNER="sirrryasir"
 REPO="archon"
 

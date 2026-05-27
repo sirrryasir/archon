@@ -9,7 +9,7 @@ import (
 )
 
 // Version is the current release version of Archon. Set via ldflags at build time.
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 var rootCmd = &cobra.Command{
 	Use:     "archon",
