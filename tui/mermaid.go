@@ -85,6 +85,9 @@ func RenderMermaidInTerminal(mermaidCode string, termWidth int) string {
 			}
 			id = strings.TrimSpace(id)
 			label = strings.Trim(strings.TrimSpace(label), `"'`)
+			label = strings.ReplaceAll(label, "<br/>", " / ")
+			label = strings.ReplaceAll(label, "<br>", " / ")
+			label = strings.ReplaceAll(label, "<br >", " / ")
 
 			if id != "" {
 				hasNodeDef = true
