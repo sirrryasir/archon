@@ -89,13 +89,14 @@ type ChatModel struct {
 	mode       modes.ProjectMode
 	isScanning bool
 	designDocs *design.DesignDocs
+	pastedText string
 }
 
 func InitialModel(_ context.Context, engine ai.Engine, sm *session.SessionManager, cwd string, mode modes.ProjectMode) ChatModel {
 	ta := textarea.New()
 	ta.Placeholder = "Ask anything... or type /help for commands"
 	ta.Focus()
-	ta.Prompt = InputPromptStyle.Render("> ")
+	ta.Prompt = ""
 	ta.CharLimit = 10000
 	ta.SetWidth(100)
 	ta.SetHeight(1)
@@ -219,6 +220,23 @@ func readNextChunk(ch <-chan string) tea.Cmd {
 }
 
 func (m ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.innerUpdate(msg)
+	if chatModel, ok := model.(ChatModel); ok {
+		chatModel = chatModel.recalculateViewportHeight()
+		return chatModel, cmd
+	}
+	return model, cmd
+}
+
+func (m ChatModel) innerUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.isStreaming {
+		m.textarea.Blur()
+	} else {
+		m.textarea.Focus()
+	}
+
+	prevVal := m.textarea.Value()
+
 	var (
 		tiCmd tea.Cmd
 		vpCmd tea.Cmd
@@ -226,6 +244,44 @@ func (m ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
+
+	newVal := m.textarea.Value()
+
+	// Detect navigation keys to avoid treating history navigation as paste
+	isNavigation := false
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.Type {
+		case tea.KeyUp, tea.KeyDown, tea.KeyTab, tea.KeyEnter:
+			isNavigation = true
+		}
+	}
+
+	// Detect paste: if the change in length is >= 40 characters in a single update,
+	// or if the new value contains a newline and is not already a pasted text placeholder
+	isPaste := false
+	if !isNavigation && !strings.HasPrefix(newVal, "[Pasted Text:") {
+		if len(newVal) > len(prevVal)+40 {
+			isPaste = true
+		} else if strings.Contains(newVal, "\n") {
+			isPaste = true
+		}
+	}
+
+	if isPaste {
+		lines := strings.Split(newVal, "\n")
+		m.pastedText = newVal
+		if len(lines) > 1 {
+			m.textarea.SetValue(fmt.Sprintf("[Pasted Text: %d lines]", len(lines)))
+		} else {
+			m.textarea.SetValue(fmt.Sprintf("[Pasted Text: %d chars]", len(newVal)))
+		}
+		m.textarea.CursorEnd()
+		newVal = m.textarea.Value()
+	}
+
+	if m.pastedText != "" && !strings.HasPrefix(newVal, "[Pasted Text:") {
+		m.pastedText = ""
+	}
 
 	// --- Aggressive Terminal Escape Sequence Filter (Garbage Text Leak) ---
 	val := m.textarea.Value()
@@ -309,7 +365,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			if m.isStreaming {
 				m.isStreaming = false
 				m.messages = append(m.messages, ai.Message{Role: "assistant", Content: "\n\n_Thinking cancelled by user._"})
-				m.textarea.Prompt = InputPromptStyle.Render("> ")
+				m.textarea.Prompt = ""
 				m.refreshView()
 				return m, nil
 			}
@@ -331,6 +387,9 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			}
 
 		case tea.KeyUp:
+			if m.isStreaming {
+				break
+			}
 			// Navigate autocomplete list if active
 			if m.showSuggest && len(m.suggestions) > 0 {
 				m.suggestIdx = (m.suggestIdx - 1 + len(m.suggestions)) % len(m.suggestions)
@@ -353,6 +412,9 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			return m, nil
 
 		case tea.KeyDown:
+			if m.isStreaming {
+				break
+			}
 			// Navigate autocomplete list if active
 			if m.showSuggest && len(m.suggestions) > 0 {
 				m.suggestIdx = (m.suggestIdx + 1) % len(m.suggestions)
@@ -411,7 +473,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 				cmd := m.executeSlashCommand(trimmed)
 
 				if m.isStreaming {
-					m.textarea.Prompt = InputPromptProcessingStyle.Render("> ")
+					m.textarea.Prompt = ""
 					m.elapsedSecs = 0
 					m.spinnerIdx = 0
 					m.refreshView()
@@ -423,9 +485,15 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			}
 
 			// Regular message
-			m.textarea.Prompt = InputPromptProcessingStyle.Render("> ")
+			m.textarea.Prompt = ""
 
-			resolvedContent := ai.ResolvePromptFiles(trimmed)
+			msgVal := trimmed
+			if m.pastedText != "" {
+				msgVal = m.pastedText
+				m.pastedText = ""
+			}
+
+			resolvedContent := ai.ResolvePromptFiles(msgVal)
 			userMsg := ai.Message{Role: "user", Content: resolvedContent}
 			m.messages = append(m.messages, userMsg)
 			_ = m.session.AppendMessage(userMsg)
@@ -442,7 +510,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 
 	case designDocsReadyMsg:
 		m.isStreaming = false
-		m.textarea.Prompt = InputPromptStyle.Render("> ")
+		m.textarea.Prompt = ""
 		if msg.err != nil {
 			m.messages = append(m.messages, ai.Message{Role: "assistant", Content: fmt.Sprintf("⚠️ **Error generating design documents**: %v", msg.err)})
 		} else {
@@ -458,7 +526,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 	case nextChunkMsg:
 		if msg.err != nil {
 			m.isStreaming = false
-			m.textarea.Prompt = InputPromptStyle.Render("> ")
+			m.textarea.Prompt = ""
 			errText := fmt.Sprintf("⚠️ **Error**: %v\n\n_Try again or check your API key / network connection._", msg.err)
 			m.messages = append(m.messages, ai.Message{Role: "assistant", Content: errText})
 			m.refreshView()
@@ -467,7 +535,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 
 		if msg.done {
 			m.isStreaming = false
-			m.textarea.Prompt = InputPromptStyle.Render("> ")
+			m.textarea.Prompt = ""
 
 			fullContent := m.streamBuffer
 			if fullContent != "" {
@@ -501,7 +569,11 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			contentW = 40
 		}
 
-		m.textarea.SetWidth(contentW)
+		if contentW > 2 {
+			m.textarea.SetWidth(contentW - 2)
+		} else {
+			m.textarea.SetWidth(contentW)
+		}
 
 		customStyle := styles.DarkStyleConfig
 		customStyle.H1.Prefix = ""
@@ -515,23 +587,6 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			glamour.WithStyles(customStyle),
 			glamour.WithWordWrap(contentW-6),
 		)
-
-		// Set precise dynamic viewport sizing
-		inputH := 1
-		helpH := 1
-		statusH := 2
-		dividerH := 1
-		padding := 1
-		suggestH := 0
-		if m.showSuggest && len(m.suggestions) > 0 {
-			suggestH = len(m.suggestions) + 2
-		}
-
-		m.viewport.Height = msg.Height - inputH - helpH - statusH - dividerH - padding - suggestH
-		if m.viewport.Height < 5 {
-			m.viewport.Height = 5
-		}
-		m.viewport.Width = contentW
 
 		m.refreshView()
 		return m, nil
@@ -591,11 +646,24 @@ func (m *ChatModel) refreshView() {
 		}
 	}
 
+	wasAtBottom := m.viewport.AtBottom()
 	m.viewport.SetContent(b.String())
-	m.viewport.GotoBottom()
+	if wasAtBottom || m.streamBuffer == "" {
+		m.viewport.GotoBottom()
+	}
 }
 
 func renderContent(content string, termWidth int, mdRenderer *glamour.TermRenderer) string {
+	// Check if there's an incomplete mermaid block at the end
+	openIdx := strings.LastIndex(content, "```mermaid")
+	closeIdx := strings.LastIndex(content, "```")
+
+	isIncompleteMermaid := false
+	if openIdx != -1 && (closeIdx == -1 || closeIdx <= openIdx) {
+		isIncompleteMermaid = true
+		content = content[:openIdx]
+	}
+
 	re := regexp.MustCompile("(?s)(```mermaid\n.*?\n```)")
 	parts := re.Split(content, -1)
 	matches := re.FindAllString(content, -1)
@@ -619,6 +687,12 @@ func renderContent(content string, termWidth int, mdRenderer *glamour.TermRender
 			result = append(result, indentString(renderedMermaid, 3))
 		}
 	}
+
+	if isIncompleteMermaid {
+		placeholder := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Italic(true).Render("   [ Generating architecture diagram... ]")
+		result = append(result, "\n"+placeholder+"\n")
+	}
+
 	return strings.Join(result, "\n")
 }
 
@@ -727,10 +801,27 @@ func (m ChatModel) View() string {
 
 	// --- Input Box ---
 	var inputBox string
+	rawView := m.textarea.View()
+	viewLines := strings.Split(rawView, "\n")
+	promptStr := InputPromptStyle.Render("> ")
 	if m.isStreaming {
-		inputBox = InputBoxProcessingStyle.Width(m.width - 4).Render(m.textarea.View())
+		promptStr = InputPromptProcessingStyle.Render("> ")
+	}
+	promptLen := lipgloss.Width(promptStr)
+	indent := strings.Repeat(" ", promptLen)
+	for i, line := range viewLines {
+		if i == 0 {
+			viewLines[i] = promptStr + line
+		} else {
+			viewLines[i] = indent + line
+		}
+	}
+	textareaView := strings.Join(viewLines, "\n")
+
+	if m.isStreaming {
+		inputBox = InputBoxProcessingStyle.Width(m.width - 4).Render(textareaView)
 	} else {
-		inputBox = InputBoxStyle.Width(m.width - 4).Render(m.textarea.View())
+		inputBox = InputBoxStyle.Width(m.width - 4).Render(textareaView)
 	}
 
 	divider := lipgloss.NewStyle().Foreground(archonGray).Render(strings.Repeat("─", m.width))
@@ -738,24 +829,9 @@ func (m ChatModel) View() string {
 
 	// If suggestions are showing, render them directly above the input box and below the divider
 	var suggestMenu string
-	suggestH := 0
 	if m.showSuggest && len(m.suggestions) > 0 {
 		suggestMenu = m.renderSuggestions() + "\n"
-		suggestH = len(m.suggestions) + 2
 	}
-
-	// --- Dynamic Viewport Height Calculation ---
-	inputH := lipgloss.Height(inputBox)
-	helpH := lipgloss.Height(helpLine)
-	statusH := lipgloss.Height(renderedStatus)
-	dividerH := 1
-	padding := 1
-
-	m.viewport.Height = m.height - inputH - helpH - statusH - dividerH - padding - suggestH
-	if m.viewport.Height < 5 {
-		m.viewport.Height = 5
-	}
-	m.viewport.Width = m.width - 4
 
 	// --- Assemble Full Layout (completely minimalist, no arcade headers) ---
 	return lipgloss.JoinVertical(lipgloss.Left,
@@ -766,6 +842,73 @@ func (m ChatModel) View() string {
 		helpLine,
 		renderedStatus,
 	)
+}
+
+func countWrappedLines(text string, width int) int {
+	if width <= 0 {
+		return 1
+	}
+	lines := strings.Split(text, "\n")
+	total := 0
+	for _, line := range lines {
+		if len(line) == 0 {
+			total++
+			continue
+		}
+		wrapped := (len(line) + width - 1) / width
+		if wrapped == 0 {
+			wrapped = 1
+		}
+		total += wrapped
+	}
+	if total == 0 {
+		return 1
+	}
+	return total
+}
+
+func (m ChatModel) recalculateViewportHeight() ChatModel {
+	taWidth := m.width - 4
+	if taWidth <= 0 {
+		taWidth = 80
+	}
+
+	text := m.textarea.Value()
+	if m.pastedText != "" {
+		text = m.pastedText
+	}
+
+	targetWidth := taWidth - 2
+	if targetWidth <= 0 {
+		targetWidth = 1
+	}
+
+	inputH := countWrappedLines(text, targetWidth)
+	if inputH > 6 {
+		inputH = 6
+	}
+	if inputH < 1 {
+		inputH = 1
+	}
+	m.textarea.SetHeight(inputH)
+	m.textarea.SetWidth(targetWidth)
+
+	suggestH := 0
+	if m.showSuggest && len(m.suggestions) > 0 {
+		suggestH = len(m.suggestions) + 2
+	}
+
+	helpH := 1
+	statusH := 2
+	dividerH := 1
+	padding := 1
+
+	m.viewport.Height = m.height - inputH - helpH - statusH - dividerH - padding - suggestH
+	if m.viewport.Height < 5 {
+		m.viewport.Height = 5
+	}
+	m.viewport.Width = m.width - 4
+	return m
 }
 
 func (m ChatModel) startStream() tea.Cmd {
