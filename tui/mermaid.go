@@ -45,8 +45,8 @@ func RenderMermaidInTerminal(mermaidCode string, termWidth int) string {
 
 	currentSubgraph := -1
 
-	// Regex to extract all node declarations: ID["Label"], ID("Label"), ID[Label], or ID(Label)
-	nodeDefReg := regexp.MustCompile(`([a-zA-Z0-9_-]+)[\[\(]+"(.*?)"[\]\)]+|([a-zA-Z0-9_-]+)[\[\(]+(.*?)[\]\)]+`)
+	// Regex to extract all node declarations: ID["Label"], ID("Label"), ID[Label], ID{Label}, or ID(Label)
+	nodeDefReg := regexp.MustCompile(`([a-zA-Z0-9_-]+)[\[\({]+"(.*?)"[\]\)}]+|([a-zA-Z0-9_-]+)[\[\({]+(.*?)[\]\)}]+`)
 	// Regex for link matching (assumes clean node IDs after cleaning labels)
 	linkReg := regexp.MustCompile(`([a-zA-Z0-9_-]+)\s*-->\s*(?:\|.*?\|)?\s*([a-zA-Z0-9_-]+)`)
 	// Regex for subgraph matching
