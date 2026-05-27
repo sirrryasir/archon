@@ -10,12 +10,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 	"github.com/sirrryasir/archon/ai"
 	"github.com/sirrryasir/archon/config"
 	"github.com/sirrryasir/archon/modes"
 	"github.com/sirrryasir/archon/session"
 	"github.com/sirrryasir/archon/tui"
+	"github.com/spf13/cobra"
 )
 
 func init() {

@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sirrryasir/archon/ai"
 	"github.com/sirrryasir/archon/config"
 	"github.com/sirrryasir/archon/design"
 	"github.com/sirrryasir/archon/mcp"
 	"github.com/sirrryasir/archon/modes"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/viper"
 )
 
@@ -110,7 +110,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `**
 			m.messages = append(m.messages, ai.Message{Role: "assistant", Content: "Usage: `/model <alias or name>`"})
 			return nil
 		}
-		
+
 		alias := ai.ResolveModelAlias(args)
 		if alias != nil {
 			viper.Set("model", alias.Model)
@@ -118,7 +118,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `**
 		} else {
 			viper.Set("model", args)
 		}
-		
+
 		m.engine = ai.NewEngine()
 		m.messages = append(m.messages, ai.Message{Role: "assistant", Content: fmt.Sprintf("_Model switched to **%s** (%s)_", config.GetModel(), config.GetProvider())})
 		return nil

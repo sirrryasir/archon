@@ -80,10 +80,10 @@ func CompactHistory(ctx context.Context, engine Engine, messages []Message) ([]M
 	}
 
 	snapshotMsg := Message{
-		Role: "assistant",
+		Role:    "assistant",
 		Content: fmt.Sprintf("<state_snapshot>\n%s\n</state_snapshot>\n\n*Note: The conversation history before this point has been compacted to save context window.*", fullSummary),
 	}
-	
+
 	compacted = append(compacted, snapshotMsg)
 	compacted = append(compacted, recentHistory...)
 

@@ -47,7 +47,7 @@ func InitConfig() {
 		localViper.AddConfigPath(filepath.Join(cwd, ".archon"))
 		localViper.SetConfigName("config")
 		localViper.SetConfigType("json")
-		
+
 		// If local config exists, merge it into the global viper instance
 		if err := localViper.ReadInConfig(); err == nil {
 			_ = viper.MergeConfigMap(localViper.AllSettings())

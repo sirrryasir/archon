@@ -51,7 +51,7 @@ var (
 			Bold(true).
 			PaddingLeft(1).
 			MarginTop(1).
-			Render("you ❯")
+			Render("you >")
 
 	UserMsgStyle = lipgloss.NewStyle().
 			Foreground(archonWhite).
@@ -63,7 +63,7 @@ var (
 			Bold(true).
 			PaddingLeft(1).
 			MarginTop(1).
-			Render("archon ❯")
+			Render("archon >")
 
 	ArchonMsgStyle = lipgloss.NewStyle().
 			PaddingLeft(3).
@@ -100,8 +100,8 @@ var (
 	InputBoxProcessingStyle = InputBoxStyle.Copy()
 
 	InputPromptStyle = lipgloss.NewStyle().
-					Foreground(archonCyan).
-					Bold(true)
+				Foreground(archonCyan).
+				Bold(true)
 
 	InputPromptProcessingStyle = lipgloss.NewStyle().
 					Foreground(archonGray).

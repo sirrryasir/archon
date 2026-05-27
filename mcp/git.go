@@ -20,7 +20,7 @@ func IsGitRepo(rootPath string) bool {
 func runGit(rootPath string, args ...string) string {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = rootPath
-	
+
 	// Set a reasonable timeout to prevent hanging
 	timer := time.AfterFunc(5*time.Second, func() {
 		if cmd.Process != nil {
@@ -31,11 +31,11 @@ func runGit(rootPath string, args ...string) string {
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	
+
 	if err := cmd.Run(); err != nil {
 		return ""
 	}
-	
+
 	return strings.TrimSpace(out.String())
 }
 

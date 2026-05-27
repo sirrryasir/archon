@@ -31,12 +31,12 @@ func EstimateMessageTokens(messages []Message) int {
 // GetModelContextLimit returns the maximum context window size for popular models.
 func GetModelContextLimit(model string) int {
 	modelLower := strings.ToLower(model)
-	
+
 	// Anthropic
 	if strings.Contains(modelLower, "claude-3-5") || strings.Contains(modelLower, "opus") || strings.Contains(modelLower, "sonnet") {
 		return 200_000
 	}
-	
+
 	// Google
 	if strings.Contains(modelLower, "gemini-1.5-pro") {
 		return 2_000_000
@@ -44,12 +44,12 @@ func GetModelContextLimit(model string) int {
 	if strings.Contains(modelLower, "gemini-1.5-flash") {
 		return 1_000_000
 	}
-	
+
 	// OpenAI
 	if strings.Contains(modelLower, "gpt-4o") || strings.Contains(modelLower, "gpt-4-turbo") {
 		return 128_000
 	}
-	
+
 	// Default generic fallback (e.g. for standard open-source Ollama models)
 	// We use 32k as a safe baseline for modern local models like Qwen/Llama3
 	return 32_000

@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/sirrryasir/archon/config"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 

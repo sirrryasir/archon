@@ -11,6 +11,14 @@
 
 <p align="center">A Socratic AI Software Architect CLI for evaluated, constraint-driven systems engineering.</p>
 
+<details>
+  <summary>🎬 <b>Watch the Introduction Video</b> (Click to expand)</summary>
+  <br>
+  <p align="center">
+    <video src="IntroducingArchon.mp4" controls width="100%"></video>
+  </p>
+</details>
+
 ---
 
 ## Elevator Pitch

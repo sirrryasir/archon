@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sirrryasir/archon/ai"
 	"github.com/sirrryasir/archon/config"
@@ -56,12 +57,12 @@ type scanCompleteMsg struct {
 
 // ChatModel implements tea.Model for the Archon conversational interface.
 type ChatModel struct {
-	viewport    viewport.Model
-	textarea    textarea.Model
-	engine      ai.Engine
-	session     *session.SessionManager
-	messages    []ai.Message
-	err         error
+	viewport viewport.Model
+	textarea textarea.Model
+	engine   ai.Engine
+	session  *session.SessionManager
+	messages []ai.Message
+	err      error
 
 	isStreaming  bool
 	streamBuffer string
@@ -94,7 +95,7 @@ func InitialModel(_ context.Context, engine ai.Engine, sm *session.SessionManage
 	ta := textarea.New()
 	ta.Placeholder = "Ask anything... or type /help for commands"
 	ta.Focus()
-	ta.Prompt = InputPromptStyle.Render("❯ ")
+	ta.Prompt = InputPromptStyle.Render("> ")
 	ta.CharLimit = 10000
 	ta.SetWidth(100)
 	ta.SetHeight(1)
@@ -103,8 +104,16 @@ func InitialModel(_ context.Context, engine ai.Engine, sm *session.SessionManage
 
 	vp := viewport.New(100, 20)
 
+	customStyle := styles.DarkStyleConfig
+	customStyle.H1.Prefix = ""
+	customStyle.H2.Prefix = ""
+	customStyle.H3.Prefix = ""
+	customStyle.H4.Prefix = ""
+	customStyle.H5.Prefix = ""
+	customStyle.H6.Prefix = ""
+
 	renderer, _ := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStyles(customStyle),
 		glamour.WithWordWrap(96),
 	)
 
@@ -300,7 +309,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			if m.isStreaming {
 				m.isStreaming = false
 				m.messages = append(m.messages, ai.Message{Role: "assistant", Content: "\n\n_Thinking cancelled by user._"})
-				m.textarea.Prompt = InputPromptStyle.Render("❯ ")
+				m.textarea.Prompt = InputPromptStyle.Render("> ")
 				m.refreshView()
 				return m, nil
 			}
@@ -402,7 +411,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 				cmd := m.executeSlashCommand(trimmed)
 
 				if m.isStreaming {
-					m.textarea.Prompt = InputPromptProcessingStyle.Render("❯ ")
+					m.textarea.Prompt = InputPromptProcessingStyle.Render("> ")
 					m.elapsedSecs = 0
 					m.spinnerIdx = 0
 					m.refreshView()
@@ -414,7 +423,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 			}
 
 			// Regular message
-			m.textarea.Prompt = InputPromptProcessingStyle.Render("❯ ")
+			m.textarea.Prompt = InputPromptProcessingStyle.Render("> ")
 
 			resolvedContent := ai.ResolvePromptFiles(trimmed)
 			userMsg := ai.Message{Role: "user", Content: resolvedContent}
@@ -433,7 +442,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 
 	case designDocsReadyMsg:
 		m.isStreaming = false
-		m.textarea.Prompt = InputPromptStyle.Render("❯ ")
+		m.textarea.Prompt = InputPromptStyle.Render("> ")
 		if msg.err != nil {
 			m.messages = append(m.messages, ai.Message{Role: "assistant", Content: fmt.Sprintf("⚠️ **Error generating design documents**: %v", msg.err)})
 		} else {
@@ -449,7 +458,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 	case nextChunkMsg:
 		if msg.err != nil {
 			m.isStreaming = false
-			m.textarea.Prompt = InputPromptStyle.Render("❯ ")
+			m.textarea.Prompt = InputPromptStyle.Render("> ")
 			errText := fmt.Sprintf("⚠️ **Error**: %v\n\n_Try again or check your API key / network connection._", msg.err)
 			m.messages = append(m.messages, ai.Message{Role: "assistant", Content: errText})
 			m.refreshView()
@@ -458,7 +467,7 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 
 		if msg.done {
 			m.isStreaming = false
-			m.textarea.Prompt = InputPromptStyle.Render("❯ ")
+			m.textarea.Prompt = InputPromptStyle.Render("> ")
 
 			fullContent := m.streamBuffer
 			if fullContent != "" {
@@ -494,8 +503,16 @@ Using model **` + strings.ToUpper(config.GetModel()) + `** • ` + fmt.Sprintf("
 
 		m.textarea.SetWidth(contentW)
 
+		customStyle := styles.DarkStyleConfig
+		customStyle.H1.Prefix = ""
+		customStyle.H2.Prefix = ""
+		customStyle.H3.Prefix = ""
+		customStyle.H4.Prefix = ""
+		customStyle.H5.Prefix = ""
+		customStyle.H6.Prefix = ""
+
 		m.mdRenderer, _ = glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithStyles(customStyle),
 			glamour.WithWordWrap(contentW-6),
 		)
 
@@ -545,17 +562,13 @@ func (m *ChatModel) refreshView() {
 			} else if strings.Contains(trimmed, "## SYSTEM QUALITIES") || strings.Contains(trimmed, "## CONCLUSION") {
 				b.WriteString(ArchonLabel + "\n")
 				rendered, _ := m.mdRenderer.Render(msg.Content)
-				b.WriteString(ReviewBoxStyle.Render(rendered) + "\n")
+				b.WriteString(renderReviewBox(rendered) + "\n")
 			} else if strings.HasPrefix(msg.Content, "**System Status**") {
 				b.WriteString("\n" + CommandResultStyle.Render(msg.Content) + "\n")
 			} else {
 				b.WriteString(ArchonLabel + "\n")
-				rendered, err := m.mdRenderer.Render(msg.Content)
-				if err != nil {
-					b.WriteString(ArchonMsgStyle.Render(msg.Content) + "\n")
-				} else {
-					b.WriteString(ArchonMsgStyle.Render(rendered))
-				}
+				rendered := renderContent(msg.Content, m.width, m.mdRenderer)
+				b.WriteString(rendered + "\n")
 			}
 		}
 	}
@@ -571,12 +584,8 @@ func (m *ChatModel) refreshView() {
 		if m.streamBuffer == "" {
 			b.WriteString(spinLine + "\n")
 		} else {
-			rendered, err := m.mdRenderer.Render(m.streamBuffer)
-			if err != nil {
-				b.WriteString(ArchonMsgStyle.Render(m.streamBuffer))
-			} else {
-				b.WriteString(ArchonMsgStyle.Render(rendered))
-			}
+			rendered := renderContent(m.streamBuffer, m.width, m.mdRenderer)
+			b.WriteString(rendered + "\n")
 			// Show inline spinner at the end while still streaming
 			b.WriteString(spinLine + "\n")
 		}
@@ -584,6 +593,61 @@ func (m *ChatModel) refreshView() {
 
 	m.viewport.SetContent(b.String())
 	m.viewport.GotoBottom()
+}
+
+func renderContent(content string, termWidth int, mdRenderer *glamour.TermRenderer) string {
+	re := regexp.MustCompile("(?s)(```mermaid\n.*?\n```)")
+	parts := re.Split(content, -1)
+	matches := re.FindAllString(content, -1)
+
+	var result []string
+	for i, part := range parts {
+		if strings.TrimSpace(part) != "" {
+			renderedPart, err := mdRenderer.Render(part)
+			if err == nil {
+				renderedPart = strings.TrimSuffix(renderedPart, "\n\n")
+				result = append(result, indentString(renderedPart, 3))
+			} else {
+				result = append(result, indentString(part, 3))
+			}
+		}
+		if i < len(matches) {
+			code := strings.TrimPrefix(matches[i], "```mermaid\n")
+			code = strings.TrimSuffix(code, "\n```")
+			code = strings.TrimSuffix(code, "```")
+			renderedMermaid := RenderMermaidInTerminal(code, termWidth)
+			result = append(result, indentString(renderedMermaid, 3))
+		}
+	}
+	return strings.Join(result, "\n")
+}
+
+func indentString(s string, spaces int) string {
+	lines := strings.Split(s, "\n")
+	indent := strings.Repeat(" ", spaces)
+	for i, l := range lines {
+		if i == len(lines)-1 && l == "" {
+			continue
+		}
+		if len(strings.TrimSpace(l)) > 0 {
+			lines[i] = indent + l
+		} else {
+			lines[i] = l
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderReviewBox(content string) string {
+	borderStyle := lipgloss.NewStyle().Foreground(archonBlue).Render("│")
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if i == len(lines)-1 && line == "" {
+			continue
+		}
+		lines[i] = "   " + borderStyle + "  " + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 // renderSuggestions renders a floating list box of available commands matching current input.
@@ -598,7 +662,7 @@ func (m ChatModel) renderSuggestions() string {
 
 	for i, sug := range m.suggestions {
 		if i == m.suggestIdx {
-			items = append(items, lipgloss.NewStyle().Foreground(archonCyan).Background(archonDarkG).Bold(true).Render(" ❯ "+sug))
+			items = append(items, lipgloss.NewStyle().Foreground(archonCyan).Background(archonDarkG).Bold(true).Render(" > "+sug))
 		} else {
 			items = append(items, lipgloss.NewStyle().Foreground(archonWhite).Render("   "+sug))
 		}

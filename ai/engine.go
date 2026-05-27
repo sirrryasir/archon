@@ -36,7 +36,7 @@ func (m *MockEngine) ChatStream(ctx context.Context, messages []Message, onChunk
 			text += " "
 		}
 		fullResponse.WriteString(text)
-		
+
 		// Run Guardian on every accumulated response chunk
 		if ScanChunkForViolations(fullResponse.String()) {
 			warning := "\n\n> ⚠️ **[GUARDIAN INTERCEPTED]**: I don't write implementation code. Let's focus on the architecture. What problem are you actually trying to solve?"

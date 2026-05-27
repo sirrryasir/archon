@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/sirrryasir/archon/ai"
 	"github.com/sirrryasir/archon/mcp"
+	"github.com/spf13/cobra"
 )
 
 var promptTimeout time.Duration

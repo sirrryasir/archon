@@ -30,7 +30,7 @@ func NewSessionManager(sessionID, projectPath string) (*SessionManager, error) {
 	}
 
 	filePath := filepath.Join(sessionDir, fmt.Sprintf("%s.jsonl", sessionID))
-	
+
 	// Open in append mode, create if not exists
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
@@ -50,7 +50,7 @@ func (sm *SessionManager) AppendMessage(msg ai.Message) error {
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = sm.File.Write(append(data, '\n'))
 	return err
 }
@@ -58,24 +58,27 @@ func (sm *SessionManager) AppendMessage(msg ai.Message) error {
 // LoadHistory reads the JSONL file and returns the list of messages.
 func (sm *SessionManager) LoadHistory() ([]ai.Message, error) {
 	var messages []ai.Message
-	
+
 	// Rewind to beginning
 	_, err := sm.File.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	scanner := bufio.NewScanner(sm.File)
+	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
 	for scanner.Scan() {
 		var msg ai.Message
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err == nil {
 			messages = append(messages, msg)
 		}
 	}
-	
+
 	// Seek back to end for future appends
 	_, _ = sm.File.Seek(0, 2)
-	
+
 	return messages, scanner.Err()
 }
 
